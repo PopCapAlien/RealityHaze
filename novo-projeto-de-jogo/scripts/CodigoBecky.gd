@@ -4,26 +4,32 @@ extends CharacterBody3D
 # do personagem rapidamente
 @export_group("Player Camera")
 @export_range(0.0, 1.0) var mouse_sensitivity := 0.25
-
 @export_group("Movement")
-@export var movement_speed := 8.0
-@export var acceleration := 20.0
+@export var movement_speed := 25.0
+@export var acceleration := 25.0
 @export var rotationspeed := 12.0
-@export var jumpimpulse := 12.0
-@export var diveimpulse := 16.0
+@export var jumpimpulse := 25.0
+@export var diveimpulse := 30.0
 @export var jump_count := 0.0
 @export var dive_count := 0.0
+@export var gravity := -50.0
 var jumplimitvalue := 2.0
 var divelimitvalue := 1.0
+
+@export_group("WorldElements")
+@onready var DeathPart = %DeathPart
+@onready var Player3D = %Player3D
+@onready var Checkpoint = %Checkpoint
+@onready var NewCheck = %NewCheck
 
 # Objetos da Cena
 @onready var camera_pivot: Node3D = %CameraPivot
 @onready var camera: Camera3D = %Camera3D
-@export var gravity := -30.0
+
+
 # Movimento Camera e Movimento do personagem rotacionando
 var camera_direction := Vector2.ZERO
 var lastmovement_direction := Vector3.BACK
-
 # Modelo do Personagem
 @onready var skin: Node3D = %novabecky
 
@@ -44,7 +50,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if camera_motion:
 		camera_direction = event.screen_relative * mouse_sensitivity
 		
-# Faz o objeto da câmera rotacionar ao redor do eixo e cuida das físicas do personagem.
 func _physics_process(delta: float) -> void:
 	camera_pivot.rotation.x += camera_direction.y * delta
 	camera_pivot.rotation.x = clamp(camera_pivot.rotation.x, -PI / 6.0, PI / 3.0)
@@ -53,7 +58,6 @@ func _physics_process(delta: float) -> void:
 	if is_on_floor():
 		jump_count = 0.0
 		dive_count = 0.0
-
 # Base do Movimento do Personagem / Camera acompanhar personagem
 	var rawinput := Input.get_vector("moveleft", "moveright", "moveup", "movedown")
 	var forward := camera.global_basis.z
@@ -65,9 +69,10 @@ func _physics_process(delta: float) -> void:
 	move_direction = move_direction.normalized()
 # Calcula a velocidade, queda e pulo.
 	var yvelocity := velocity.y
-	velocity.y = 0.0
-	velocity = velocity.move_toward(move_direction * movement_speed, acceleration * delta)
-	velocity.y = yvelocity + gravity * delta
+	if move_direction.length() >= 0.0:
+		velocity.y = 0.0
+		velocity = velocity.move_toward(move_direction * movement_speed, acceleration * delta)
+		velocity.y = yvelocity + gravity * delta
 	# Ação de pulo do personagem + Limite de pulo
 	var jumpstart := Input.is_action_just_pressed("ui_accept")
 	if jumpstart and jump_count < (jumplimitvalue):
@@ -79,15 +84,15 @@ func _physics_process(delta: float) -> void:
 	if divestart:
 		var dive_dir := (diveforward + lastmovement_direction * delta)
 		velocity = dive_dir * diveimpulse
+		velocity.y = 10.0
 		dive_count += 1
 		# Faz com que a camera nn entre na cabeça durante o dive em alta velocidade.
 		$CameraPivot/SpringArm3D.add_excluded_object(self)
 		# Código acima tem como função fazer o Dive funcionar, e a parte do springarm basicamente
 		# impede o springarm de entrar na cabeça dele mesmo.
+		
+	
 
-		
-		
-		
 # Calcula a rotação durante o movimento
 	if move_direction.length() > 0.2:
 		lastmovement_direction = move_direction
@@ -98,3 +103,11 @@ func _physics_process(delta: float) -> void:
 	
 	move_and_slide()
 	
+# Código Morte
+func _on_death_part_body_entered(body):
+	if body == Player3D:
+		Player3D.global_position = Checkpoint.get_global_transform().origin
+		
+func _on_new_check_body_entered(body):
+	if body == Player3D:
+		Checkpoint.global_position = NewCheck.get_global_transform().origin
